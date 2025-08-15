@@ -155,6 +155,14 @@ impl FastqReader {
                     return Ok(None);
                 }
                 if !h.is_empty() {
+                    // strip UTF-8 BOM at very beginning of file/stream
+                    if h.starts_with('\u{FEFF}') {
+                        // U+FEFF
+                        h.drain(..'\u{FEFF}'.len_utf8());
+                        if h.is_empty() {
+                            continue;
+                        }
+                    }
                     break;
                 }
             }
@@ -168,7 +176,23 @@ impl FastqReader {
                     self.ctx(),
                 ));
             }
-            return Err(FastqError::fmt_err(FormatError::MissingHeader, self.ctx()));
+
+            let ch = header.chars().next().unwrap_or('\0');
+            let bytes = header.as_bytes();
+            let preview_len = bytes.len().min(4);
+            let hex = bytes[..preview_len]
+                .iter()
+                .map(|b| format!("{:02X}", b))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let msg = format!(
+                "expected header '@' at start of record, got first char {:?} (U+{:04X}); first bytes: {}",
+                ch, ch as u32, hex
+            );
+            return Err(FastqError::io_err(
+                std::io::Error::new(std::io::ErrorKind::InvalidData, msg),
+                self.ctx(),
+            ));
         }
 
         // Parse id/desc

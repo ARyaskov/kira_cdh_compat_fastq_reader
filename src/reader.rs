@@ -71,7 +71,7 @@ impl FastqReader {
                         },
                     )
                 })?;
-                let cursor = Cursor::new(mmap);
+                let cursor = std::io::Cursor::new(mmap);
                 Box::new(BufReader::with_capacity(512 * 1024, cursor))
             }
             #[cfg(not(feature = "mmap"))]

@@ -7,6 +7,7 @@ use crate::record::FastqRecord;
 use async_compression::tokio::bufread::GzipDecoder;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
+use tokio::io::AsyncBufRead;
 use tokio::io::{self, AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 
@@ -17,19 +18,16 @@ pub enum AsyncSource {
 }
 
 /// Async FASTQ reader (plain/.gz), streaming.
-pub struct AsyncFastqReader<R>
-where
-    R: AsyncBufRead + Unpin + Send + 'static,
-{
+pub struct AsyncFastqReader {
     src: AsyncSource,
-    rdr: BufReader<R>,
+    rdr: BufReader<Box<dyn AsyncBufRead + Unpin + Send>>,
     opts: ReaderOptions,
     line_num: u64,
     byte_pos: u64,
     pending_header: Option<String>,
 }
 
-impl AsyncFastqReader<BufReader<File>> {
+impl AsyncFastqReader {
     /// Open async from path; `.gz` auto-detect by extension or magic bytes.
     pub async fn from_path<P: AsRef<Path>>(
         path: P,

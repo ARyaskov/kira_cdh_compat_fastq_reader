@@ -1,0 +1,34 @@
+[package]
+name = "kira_cdh_compat_fastq_reader"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-2"
+description = "Streaming FASTQ reader compatible with CD-HIT input handling (plain and .gz), safe idiomatic Rust API; sync and async."
+repository = "https://github.com/ARyaskov/kira_cdh_compat_fastq_reader"
+homepage = "https://github.com/ARyaskov/kira_cdh_compat_fastq_reader"
+documentation = "https://docs.rs/kira_cdh_compat_fastq_reader"
+categories = ["science", "parsing"]
+keywords = ["fastq", "cd-hit", "bioinformatics", "gzip", "streaming"]
+
+[dependencies]
+flate2 = { version = "1", default-features = true }
+memmap2 = { version = "0.9", optional = true }
+thiserror = "1"
+log = "0.4"
+
+tokio = { version = "1", features = ["io-util", "fs", "rt-multi-thread"], optional = true }
+async-compression = { version = "0.4", features = ["tokio", "gzip"], optional = true }
+
+[features]
+default = ["gzip"]
+gzip = []
+mmap = ["memmap2"]
+zlib = ["flate2/zlib"]  # use system zlib backend for flate2
+async = ["tokio", "async-compression"]
+
+[dev-dependencies]
+tempfile = "3"
+criterion = { version = "0.5", default-features = false }
+# for async tests
+tokio = { version = "1", features = ["io-util", "fs", "rt-multi-thread", "macros"] }

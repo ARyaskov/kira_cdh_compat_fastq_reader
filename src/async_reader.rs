@@ -7,7 +7,6 @@ use crate::record::FastqRecord;
 use async_compression::tokio::bufread::GzipDecoder;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
-use tokio::io::AsyncBufRead;
 use tokio::io::{self, AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 
@@ -47,40 +46,36 @@ impl AsyncFastqReader {
         let is_gz = path.extension().and_then(|s| s.to_str()) == Some("gz")
             || looks_like_gzip_async(&mut f).await.unwrap_or(false);
 
-        if is_gz {
-            let dec = GzipDecoder::new(BufReader::with_capacity(256 * 1024, f));
-            let rdr = BufReader::with_capacity(256 * 1024, dec);
-            Ok(Self {
-                src: AsyncSource::Path(path),
-                rdr,
-                opts,
-                line_num: 0,
-                byte_pos: 0,
-                pending_header: None,
-            })
+        let inner: Box<dyn AsyncBufRead + Unpin + Send> = if is_gz {
+            let gz = GzipDecoder::new(BufReader::with_capacity(256 * 1024, f));
+            Box::new(BufReader::with_capacity(256 * 1024, gz))
         } else {
-            let rdr = BufReader::with_capacity(256 * 1024, f);
-            Ok(Self {
-                src: AsyncSource::Path(path),
-                rdr,
-                opts,
-                line_num: 0,
-                byte_pos: 0,
-                pending_header: None,
-            })
-        }
-    }
-}
+            Box::new(BufReader::with_capacity(256 * 1024, f))
+        };
 
-impl<R> AsyncFastqReader<R>
-where
-    R: AsyncBufRead + Unpin + Send + 'static,
-{
+        let rdr = BufReader::with_capacity(256 * 1024, inner);
+
+        Ok(Self {
+            src: AsyncSource::Path(path),
+            rdr,
+            opts,
+            line_num: 0,
+            byte_pos: 0,
+            pending_header: None,
+        })
+    }
+
     /// Wrap any async `AsyncBufRead`.
-    pub fn from_async_bufread(reader: R, opts: ReaderOptions) -> Self {
+    pub fn from_async_bufread<R>(reader: R, opts: ReaderOptions) -> Self
+    where
+        R: AsyncBufRead + Unpin + Send + 'static,
+    {
+        let inner: Box<dyn AsyncBufRead + Unpin + Send> =
+            Box::new(BufReader::with_capacity(256 * 1024, reader));
+        let rdr = BufReader::with_capacity(256 * 1024, inner);
         Self {
             src: AsyncSource::Reader,
-            rdr: BufReader::with_capacity(256 * 1024, reader),
+            rdr,
             opts,
             line_num: 0,
             byte_pos: 0,
